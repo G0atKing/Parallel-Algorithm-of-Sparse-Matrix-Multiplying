@@ -112,7 +112,6 @@ int matrix_to_coo(float **M,int n,float* &value,int* & row,int* & col,int* & ind
       for(j=0;j<n;j++)
           if(M[i][j]!=0)
               a++;//统计非零元素个数
-   int i,j;
    value=new float[a];
    col=new int[a];
    row=new int[a];
@@ -141,7 +140,7 @@ int matrix_to_coo(float **M,int n,float* &value,int* & row,int* & col,int* & ind
    index[p++]=0;
    for(int k=1;k<a;k++){
       if(row[k]!=row[k-1]){
-          index[p++]=k;
+          index[p++]=k;  //我们将所有行的首个元素的下标(COO下标)都存储在index数组中
       }
    }
    index[nozerorows]=nonzeros;//这里是一个哨兵
@@ -213,7 +212,7 @@ double coo_multiply_matrix_sse(int nonzeros,int n,int* row,int* col,float* value
 void init(){
     nonzeros=0;
     nozerorows=0;
-    THREAD_NUM=4;
+    // THREAD_NUM=4;
     srand((int)time(0));
     s=0.005;
     y=new float[n]{0};
@@ -611,10 +610,10 @@ double coo_multiply_vector_openMP_static(){
     //#pragma omp parallel num_threads(OMP_NUM_THREADS)
     //#pragma omp for
     int i,j;
-    #pragma omp parallel for num_threads(OMP_NUM_THREADS),private(i, j)
-    for(i=0;i<nozerorows;i++)
+    #pragma omp parallel for num_threads(OMP_NUM_THREADS),private(i, j)//omp parallel for是OpenMP中的一个指令，表示接下来的for循环将被多线程执行，i,j为每次循环私有，这里的私有不是线程私有，是循环私有
+    for(i=0;i<nozerorows;i++)//循环非零行次
     {
-        for(j=index[i];j<index[i+1];j++)
+        for(j=index[i];j<index[i+1];j++)//计算每一行的所有元素
         {
             yy[row[j]]+=value[j]*vec[col[j]];
         }
@@ -634,7 +633,7 @@ double coo_multiply_vector_openMP_dynamic(){
     int i,j;
     #pragma omp parallel num_threads(OMP_NUM_THREADS),private(i, j)
     //#pragma omp for schedule(static, nozerorows/OMP_NUM_THREADS)dynamic, 50
-    #pragma omp for schedule(guided)
+    #pragma omp for schedule(guided)//guided调度是一种采用指导性的启发式自调度方法。开始时每个线程会分配到较大的迭代块，之后分配到的迭代块会逐渐递减。迭代块的大小会按指数级下降到指定的size大小，如果没有指定size参数，那么迭代块大小最小会降到1。
     for(i=0;i<nozerorows;i++)
     {
         for(j=index[i];j<index[i+1];j++)
@@ -657,9 +656,9 @@ double coo_multiply_matrix_openMP_static(){
 
     int i,k;
     #pragma omp parallel for num_threads(OMP_NUM_THREADS),private(i, k)
-    for (i=0;i<nonzeros;i++)
+    for (i=0;i<nonzeros;i++)//对非零元素循环
     {
-        for(k=0;k<n;k++)
+        for(k=0;k<n;k++)//计算该元素所在行的影响
             mat_res1[row[i]][k] += value[i] * mat_nonsparse[col[i]][k];
     }
 
@@ -698,7 +697,7 @@ double coo_multiply_matrix_openMP_static_sse(){
     #pragma omp parallel for num_threads(OMP_NUM_THREADS),private(i, k,t1,t2,t3,sum)
     for (i=0;i<nonzeros;i++)
     {
-        for(int k=0;k<n-choice;k+=4)
+        for(int k=0;k<n-choice;k+=4)//循环内部使用SSE并行
             {
                 t1=_mm_load_ps(mat_nonsparse[col[i]]+k);
                 sum = _mm_setzero_ps();
@@ -718,10 +717,6 @@ double coo_multiply_matrix_openMP_static_sse(){
 	return diff / Converter;
 }
 
-// ///实现spMM的openMP编程版本静态线程分配+AVX并行
-// double coo_multiply_matrix_openMP_static_avx(){
-
-
 ///实现spMM的openMP编程版本动态线程分配+SSE并行
 double coo_multiply_matrix_openMP_dynamic_sse(){
     struct timeval val,newVal;
@@ -731,7 +726,7 @@ double coo_multiply_matrix_openMP_dynamic_sse(){
     int i,k;
     #pragma omp parallel num_threads(OMP_NUM_THREADS),private(i, k,t1,t2,t3,sum)
     //#pragma omp for schedule(static, nozerorows/OMP_NUM_THREADS)dynamic, 50
-    #pragma omp for schedule(guided)
+    #pragma omp for schedule(guided)//动态分配
     for (i=0;i<nonzeros;i++)
     {
         for(int k=0;k<n-choice;k+=4)
@@ -754,8 +749,6 @@ double coo_multiply_matrix_openMP_dynamic_sse(){
 	return diff / Converter;
 }
 
-// ///实现spMM的openMP编程版本动态线程分配+AVX并行
-// double coo_multiply_matrix_openMP_dynamic_avx(){
 
 
 //spMV中所有算法的对比分析研究：
@@ -815,15 +808,19 @@ void spMM_all_test(){
     init();
     double serial,spmm_static1,spmm_dynamic,spmm_dynamic_sse,spmm_dynamic_avx,spmm_sse,spmm_avx,spmm_pthread_sse,spmm_pthread_avx,
         spmm_openmp_static,spmm_openmp_dynamic,spmm_openmp_dynamic_sse,spmm_openmp_dynamic_avx,spmm_openmp_static_sse,spmm_openmp_static_avx = 0;
+    //串行
     serial=coo_multiply_matrix_serial(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
+    //SSE
     spmm_sse=coo_multiply_matrix_sse(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
-    spmm_static1=spMM_pThread_static1(4);
-    spmm_dynamic=spMM_pThread_dynamic1(4);
-    spmm_pthread_sse=spMM_pThread_sse1(4);
+    //pThread
+    spmm_static1=spMM_pThread_static1(THREAD_NUM);
+    spmm_dynamic=spMM_pThread_dynamic1(THREAD_NUM);
+    spmm_pthread_sse=spMM_pThread_sse1(THREAD_NUM);
     next_arr2 = 0;
-    spmm_dynamic_sse=spMM_pThread_dynamic_sse(4);
+    spmm_dynamic_sse=spMM_pThread_dynamic_sse(THREAD_NUM);
     next_arr2 = 0;
-
+    //openMP
+    OMP_NUM_THREADS=THREAD_NUM;
     spmm_openmp_static=coo_multiply_matrix_openMP_static();
     spmm_openmp_static_sse=coo_multiply_matrix_openMP_static_sse();
 
@@ -851,7 +848,7 @@ void spMM_all_test(){
         <<"spmm_openmp_dynamic"<<spmm_openmp_dynamic<<endl
 
         <<"spmm_dynamic_sse:"<<spmm_dynamic_sse<<endl
-        <<"spmm_open_dyna_sse"<<spmm_openmp_dynamic_sse<<endl
+        <<"spmm_open_dyna_sse"<<spmm_openmp_dynamic_sse<<endl;
         
 }
 
@@ -919,9 +916,15 @@ void spMM_dynamic_lab(){
 
 int main()
 {
+    THREAD_NUM=4;
+    cout<<"spMM_all_test"<<endl;
     spMM_all_test();
+    cout<<"spMM_all"<<endl;
     spMM_all();
+    cout<<"spMV_all"<<endl;
     spMV_all();
+    cout<<"spMM_dynamic_lab"<<endl;
+    spMM_dynamic_lab();
     //释放内存空间
     delete []mat;
     delete []mat_nonsparse;
