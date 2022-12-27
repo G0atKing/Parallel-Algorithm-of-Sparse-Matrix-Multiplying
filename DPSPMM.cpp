@@ -675,7 +675,7 @@ double coo_multiply_matrix_openMP_dynamic(){
     int i,k;
     #pragma omp parallel num_threads(OMP_NUM_THREADS),private(i, k)
     //#pragma omp for schedule(static, nozerorows/OMP_NUM_THREADS)dynamic, 50
-    #pragma omp for schedule(guided)
+    #pragma omp for schedule(guided)// guided动态线程分配
     for (i=0;i<nonzeros;i++)
     {
         for(k=0;k<n;k++)
