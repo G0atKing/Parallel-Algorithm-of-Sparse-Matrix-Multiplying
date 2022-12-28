@@ -1,16 +1,3 @@
-/**
------------------------------------------------------------------------
-本次实验是实现pThread并行的稀疏矩阵COO格式的乘法的运算，主要包含下面两个方面：
-1. SpMV: 目的：1.实现并行化算法优化并与平凡算法相比较,主要分为静态并行和动态并行
-2. SPMM：目的：1.实现普通并行算法优化：单纯进行循环展开分配任务；2.实现动态并行算法优化，“结束一个任务再来一个任务”；3.实现pThread与sse结合的算法
-
-将这些数据的输出以csv的形式存储下来，多种算法与平凡算法进行对比，在不同的数据规模下
-
-注意：本次实验要实现文件存储，另外，要注意动态内存分配的一些注意事项
-------------------------------------------------------------------------
-windows版本
-ubtuntu
-**/
 #include<cstdlib>
 #include<algorithm>
 #include<iostream>
@@ -204,9 +191,6 @@ double coo_multiply_matrix_sse(int nonzeros,int n,int* row,int* col,float* value
 	return diff / Converter;
 }
 
-//实现COO与稠密矩阵相乘的并行算法AVX
-//实现原理是实现八路并行
-// double coo_multiply_matrix_avx(int nonzeros,int n,int* row,int* col,float* value,float**b,float**c){
 
 //初始化
 void init(){
@@ -406,12 +390,7 @@ void* coo_multiply_matrix_pthread_sse1(void *parm){
     pthread_exit(NULL);
 }
 
-// ///实现pThread编程和avx编程结合的技术
-// void* coo_multiply_matrix_pthread_avx1(void *parm){
 
-
-///实现pThread编程和avx编程结合的技术
-//void* coo_multiply_matrix_pthread_avx2(void *parm){
 
 
 //pThread实现spMV代码封装：静态线程分配
@@ -553,7 +532,6 @@ double spMM_pThread_dynamic_sse(int thread_num){
 	return diff / Converter;
 }
 
-// double spMM_pThread_dynamic_avx(int thread_num){
 
 
 //pThread实现spMM-SSE代码封装
@@ -574,74 +552,6 @@ double spMM_pThread_sse1(int thread_num){
     {
       pthread_join(thread[i], nullptr);
     }
-    gettimeofday(&newVal, NULL);
-    double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
-	return diff / Converter;
-}
-
-// //pThread实现spMM-AVX代码封装
-// double spMM_pThread_avx1(int thread_num){
-
-
-//pThread实现spMM-AVX代码封装2
-//double spMM_pThread_avx2(int thread_num){
-
-
-///--------------------------------------------------------openMP编程中的spMV算法优化------------------------------------------
-///实现spMV的openMP编程版本静态线程分配
-//#pragma omp parallel num_threads(OMP_NUM_THREADS)
-double coo_multiply_vector_openMP_static(){
-    //其中x指的是列向量，这里表示的是稀疏矩阵和列向量相乘
-    struct timeval val,newVal;
-    gettimeofday(&val, NULL);
-
-    //注意这里要合理使用index这一个变量的值来实现openMP并行
-    //1. 先编写适合openMP的串行程序
-    /*for(int i=0;i<nozerorows;i++)
-    {
-        for(int j=index[i];j<index[i+1];j++)
-        {
-            yy[row[j]]+=value[j]*vec[col[i]];
-        }
-    }*/
-    //2. 分析程序的依赖关系，其中外层是一个并行的部分，内层是一个串行的部分,其中内层又依赖于外层，这样就是直接进行外层的线程分配，对于内层就和外层暂时先一起考虑
-    //3. 编写对应的openMP程序，验证程序是否正确
-    //#pragma omp parallel if(parallel), num_threads(OMP_NUM_THREADS), private(i, j)
-    //#pragma omp parallel num_threads(OMP_NUM_THREADS)
-    //#pragma omp for
-    int i,j;
-    #pragma omp parallel for num_threads(OMP_NUM_THREADS),private(i, j)//omp parallel for是OpenMP中的一个指令，表示接下来的for循环将被多线程执行，i,j为每次循环私有，这里的私有不是线程私有，是循环私有
-    for(i=0;i<nozerorows;i++)//循环非零行次
-    {
-        for(j=index[i];j<index[i+1];j++)//计算每一行的所有元素
-        {
-            yy[row[j]]+=value[j]*vec[col[j]];
-        }
-    }
-    gettimeofday(&newVal, NULL);
-    double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
-	return diff / Converter;
-}
-
-///实现spMV的openMP编程版本动态线程分配
-//#pragma omp parallel num_threads(OMP_NUM_THREADS)
-double coo_multiply_vector_openMP_dynamic(){
-    //其中x指的是列向量，这里表示的是稀疏矩阵和列向量相乘
-    struct timeval val,newVal;
-    gettimeofday(&val, NULL);
-
-    int i,j;
-    #pragma omp parallel num_threads(OMP_NUM_THREADS),private(i, j)
-    //#pragma omp for schedule(static, nozerorows/OMP_NUM_THREADS)dynamic, 50
-    #pragma omp for schedule(guided)//guided调度是一种采用指导性的启发式自调度方法。开始时每个线程会分配到较大的迭代块，之后分配到的迭代块会逐渐递减。迭代块的大小会按指数级下降到指定的size大小，如果没有指定size参数，那么迭代块大小最小会降到1。
-    for(i=0;i<nozerorows;i++)
-    {
-        for(j=index[i];j<index[i+1];j++)
-        {
-            yy[row[j]]+=value[j]*vec[col[j]];
-        }
-    }
-
     gettimeofday(&newVal, NULL);
     double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
 	return diff / Converter;
@@ -750,55 +660,6 @@ double coo_multiply_matrix_openMP_dynamic_sse(){
 }
 
 
-
-//spMV中所有算法的对比分析研究：
-///1.对比三种算法性能：平凡算法和pThread并行算法动态加静态线程分配
-///1.改变矩阵规模测试 n的范围100——10000
-///2.改变线程数目进行测试：thread_num：4——10
-void spMV_all(){
-    double serial,spmv1,spmv2=0;
-    int span=100;
-    /*ofstream outFile;
-	outFile.open("spmv_serial.csv", ios::out); // 打开模式可省略
-	outFile << "矩阵规模" << ',' << "计算次数" << ',' << "平均时长" << endl;*/
-
-	ofstream outFile;
-	outFile.open("spmv_pthread_static.csv", ios::out); // 打开模式可省略
-	outFile << "矩阵规模" << ',' << "线程数目" << ',' << "计算次数" <<',' << "平均时长"<< endl;
-    for(int i=100;i<=10000;i+=span){
-        if(i==1000){
-            span=1000;
-        }
-        n=i;
-        init();
-        //serial=coo_multiply_vector_serial(nonzeros,n,row,col,value,vec,y);
-        //int circle=1;
-        /*while(serial<0.0001){
-            serial+=coo_multiply_vector_serial(nonzeros,n,row,col,value,vec,y);
-            circle++;
-        }*/
-        //outFile<<i<<","<<circle<<","<<serial/circle<<endl;
-
-        for(int j=4;j<=12;j++){
-            /*spmv2=spMV_pThread_dynamic(j);
-            int circle=1;
-            if(spmv2<0.0001){
-                spmv2+=spMV_pThread_dynamic(j);
-                circle++;
-            }
-            outFile<<i<<","<<j<<","<<circle<<","<<spmv2/circle<<endl;*/
-            spmv1=spMV_pThread_static(j);
-            int circle=1;
-            if(spmv1<0.0001){
-                spmv1+=spMV_pThread_static(j);
-                circle++;
-            }
-            outFile<<i<<","<<j<<","<<circle<<","<<spmv1/circle<<endl;
-        }
-    }
-    outFile.close();
-}
-
 ///1.对比spMM几种算法的性能
 ///1.改变矩阵规模测试：100——10000
 ///2.改变线程数目：4——10
@@ -833,98 +694,36 @@ void spMM_all_test(){
     next_arr2 = 0;
     next_arr = 0;
 
-    cout<<"矩阵规模 "<<n<<"  " <<"运行时间"<<endl
-        <<"serial:          "<<serial<<endl
-        <<"spmm_sse:        "<<spmm_sse<<endl
-
-        <<"spmm_static1:    "<<spmm_static1<<endl
-        <<"spmm_openmp_static"<<spmm_openmp_static<<endl
-        
-        <<"spmm_pthread_sse:"<<spmm_pthread_sse<<endl
-        <<"spmm_open_static_sse"<<spmm_openmp_static_sse<<endl
-
-
-        <<"spmm_dynamic:    "<<spmm_dynamic<<endl
-        <<"spmm_openmp_dynamic"<<spmm_openmp_dynamic<<endl
-
-        <<"spmm_dynamic_sse:"<<spmm_dynamic_sse<<endl
-        <<"spmm_open_dyna_sse"<<spmm_openmp_dynamic_sse<<endl;
+    cout<<"矩阵规模:"<<n << "\t线程数:"<<THREAD_NUM<<endl
+        <<"算法:                "<<"运行时间   "<<"加速比"<<endl
+        <<"串行:                "<<serial<< "   " <<"100%"  <<endl
+        <<"SIMD:               "<<spmm_sse<<"   " <<serial/spmm_sse*100 <<"%" << endl
+        <<"pThread静态分配:     "<<spmm_static1<<"   " <<spmm_static1/spmm_sse*100 <<"%"                           <<endl
+        <<"pThread动态分配:     "<<spmm_dynamic<<"   " <<spmm_dynamic/spmm_sse*100 <<"%"                           <<endl
+        <<"pThread静态分配+SIMD:"<<spmm_pthread_sse<<"   " <<spmm_pthread_sse/spmm_sse*100 <<"%"                         <<endl
+        <<"pThread动态分配+SIMD:"<<spmm_dynamic_sse<<"   " <<spmm_dynamic_sse/spmm_sse*100 <<"%"                       <<endl
+        <<"openMP静态分配:      "<<spmm_openmp_static<<"   " <<spmm_openmp_static/spmm_sse*100 <<"%"                    <<endl
+        <<"openMP动态分配:      "<<spmm_openmp_dynamic <<"   " <<spmm_openmp_dynamic/spmm_sse*100 <<"%"                <<endl
+        <<"openMP静态分配+SIMD: "<<spmm_openmp_static_sse <<"   " <<spmm_openmp_static_sse/spmm_sse*100 <<"%"              <<endl
+        <<"openMP动态分配+SIMD: "<<spmm_openmp_dynamic_sse <<"   " <<spmm_openmp_dynamic_sse/spmm_sse*100 <<"%"                <<endl;
         
 }
 
-void spMM_all(){
-    double serial,spmm_static1,spmm_dynamic,spmm_dynamic_sse,spmm_dynamic_avx,spmm_sse,spmm_avx,spmm_pthread_sse,spmm_pthread_avx=0;
-    int span1=100;
-    double span2=0.001;
-	ofstream outFile;
-	outFile.open("spmm_pthread_all.csv", ios::out); // 打开模式可省略
-	outFile << "矩阵规模*稀疏度" << ',' << "平凡算法时长"<< ',' << "SSE时长"<< ','
-        << "静态线程分配时长"<< ',' << "动态线程分配时长"
-        << ',' << "静态线程+sse时长"<< endl;
-	for(int i=1000;i<=10000;i+=span1){
-        if(i==1000){
-            span1=1000;
-        }
-        init();
-        serial=coo_multiply_matrix_serial(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
-        spmm_sse=coo_multiply_matrix_sse(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
-        spmm_static1=spMM_pThread_static1(4);
-        spmm_dynamic=spMM_pThread_dynamic1(4);
-        spmm_pthread_sse=spMM_pThread_sse1(4);
-
-        outFile<<nonzeros<<","<<serial<<","<<spmm_sse<<","
-            <<spmm_static1<<","<<spmm_dynamic<<","
-            <<spmm_pthread_sse<<endl;
-
-        /*serial=coo_multiply_matrix_serial(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
-        int circle=1;
-        while(serial<0.0001){
-            serial+=serial=coo_multiply_matrix_serial(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
-            circle++;
-        }
-        outFile<<i<<","<<circle<<","<<serial/circle<<endl;*/
-        /*for(int j=4;j<=12;j++){
-            /*spmv2=spMV_pThread_dynamic(j);
-            int circle=1;
-            if(spmv2<0.0001){
-                spmv2+=spMV_pThread_dynamic(j);
-                circle++;
-            }
-            outFile<<i<<","<<j<<","<<circle<<","<<spmv2/circle<<endl;
-            spmv1=spMV_pThread_static(j);
-            cout<<i<<","<<j<<","<<circle<<","<<spmv1/circle<<endl;
-        }*/
-	}
-    outFile.close();
-}
-
-///dynamic实在是太强悍了！！！！，下面进行一个测试，看看是不数据会有一个曲线变化
-///实际上只是程序内部的优化机制，使得第二次执行速度异常的快
-void spMM_dynamic_lab(){
-    init();
-    int seg=nozerorows/(THREAD_NUM*100);
-    double serial,spmm_dynamic2,spmm_static1;
-    serial=coo_multiply_matrix_serial(nonzeros,n,row,col,value,mat_nonsparse,mat_res2);
-    cout<<"serial:          "<<serial<<endl;
-    spmm_static1=spMM_pThread_static1(4);
-    cout<<"spmm_static1:    "<<spmm_static1<<endl;
-    single_circle=seg;
-    spmm_dynamic2=spMM_pThread_dynamic1(4);
-    cout<<"spmm_dynamic2:   "<<spmm_dynamic2<<endl
-        <<"加速比：   "<<(double)serial/spmm_dynamic2<<"    "<<(double)spmm_static1/spmm_dynamic2<<endl;
-}
 
 int main()
 {
+
     THREAD_NUM=4;
-    cout<<"spMM_all_test"<<endl;
+    n=4096;
     spMM_all_test();
-    cout<<"spMM_all"<<endl;
-    spMM_all();
-    cout<<"spMV_all"<<endl;
-    spMV_all();
-    cout<<"spMM_dynamic_lab"<<endl;
-    spMM_dynamic_lab();
+
+    THREAD_NUM=8;
+    n=4096;
+    spMM_all_test();
+
+    THREAD_NUM=16;
+    n=4096;
+    spMM_all_test();
     //释放内存空间
     delete []mat;
     delete []mat_nonsparse;
