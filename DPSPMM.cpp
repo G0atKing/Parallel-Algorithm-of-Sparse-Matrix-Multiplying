@@ -217,8 +217,8 @@ pthread_mutex_t  mutex_task;
 ///第一种实现的是在外层进行划分
 void* coo_multiply_matrix_pthread1(void *parm){
     threadParm_t *p = (threadParm_t *) parm;
-    int id = p->threadId;
-    int interval=nozerorows/THREAD_NUM;
+    int id = p->threadId;//线程号
+    int interval=nozerorows/THREAD_NUM;//间隔的设定
     int maxx=0;
     if(id==3){
         maxx=nonzeros;
@@ -230,7 +230,7 @@ void* coo_multiply_matrix_pthread1(void *parm){
     for(int i=index[interval*id];i<maxx;i++){//计算的index[]是从row的i行到i+interval行
         for(int k=0;k<n;k++)
             mat_res1[row[i]][k] += value[i] * mat_nonsparse[col[i]][k];
-    }
+    }//外层划分
     pthread_exit(NULL);
 }
 ///第二种方法是在内层进行划分
@@ -238,7 +238,7 @@ void* coo_multiply_matrix_pthread2(void *parm){
     threadParm_t2 *p = (threadParm_t2 *) parm;
     int id = p->threadId;
     int i=p->rowid;
-    int interval=n/THREAD_NUM;
+    int interval=n/THREAD_NUM;//间隔的设定
     int maxx=0;
     if(id==3){
         maxx=n;
@@ -258,10 +258,10 @@ int next_arr2 = 0;
 //实现pThread编程的spmm动态线程分配
 void* coo_multiply_matrix_pthread4(void *parm){
     threadParm_t *p = (threadParm_t *) parm;
-    int id = p->threadId;
+    int id = p->threadId;//线程id
     __m128 t1,t2,t3,sum;
     int choice = n % 4;
-    int task = 0;
+    int task = 0;//任务数
     int maxx;
     while(1){
         pthread_mutex_lock(&mutex_task);
@@ -272,7 +272,7 @@ void* coo_multiply_matrix_pthread4(void *parm){
         if(task>=nozerorows-single_circle)maxx=nonzeros;
         else maxx=index[task+single_circle];
         for(int i=index[task];i<maxx;i++){
-            for(int k=0;k<n-choice;k+=4)
+            for(int k=0;k<n-choice;k+=4)//一次求4组
             {
                 t1=_mm_load_ps(mat_nonsparse[col[i]]+k);
                 sum = _mm_setzero_ps();
@@ -310,7 +310,7 @@ void* coo_multiply_matrix_pthread3(void *parm){
             for(int k=0;k<n;k++)
                 mat_res3[row[i]][k] += value[i] * mat_nonsparse[col[i]][k];
         }
-    }
+    }//多线程动态分配
     pthread_exit(NULL);
 }
 
@@ -318,12 +318,12 @@ void* coo_multiply_matrix_pthread3(void *parm){
 void* coo_multiply_matrix_pthread_sse1(void *parm){
     threadParm_t *p = (threadParm_t *) parm;
     int id = p->threadId;
-    int interval=nozerorows/THREAD_NUM;
+    int interval=nozerorows/THREAD_NUM;//间隔的设定
     int maxx=0;
     __m128 t1,t2,t3,sum;
     int choice = n % 4;
     if(id==3){
-        maxx=nonzeros;
+        maxx=nonzeros;//最大非零个数
 
     }else{
         maxx=index[interval*(id+1)];
