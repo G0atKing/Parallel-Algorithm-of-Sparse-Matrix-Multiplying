@@ -134,18 +134,6 @@ int matrix_to_coo(float **M,int n,float* &value,int* & row,int* & col,int* & ind
    return a;
 }
 
-//实现COO和向量相乘（串行算法）
-double coo_multiply_vector_serial(int nonzeros,int n,int* row,int* col,float* value,float* x,float* y){
-    //其中x指的是列向量，这里表示的是稀疏矩阵和列向量相乘
-    struct timeval val,newVal;
-    gettimeofday(&val, NULL);
-    for (int i=0;i<nonzeros;i++)//按稀疏行循环
-        y[row[i]] += value[i] * x[col[i]];//最后y中得出的结果是最后的稀疏矩阵和列向量相乘的结果
-    gettimeofday(&newVal, NULL);
-    double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
-	return diff / Converter;
-}
-
 //实现COO与稠密矩阵相乘串行算法
 double coo_multiply_matrix_serial(int nonzeros,int n,int* row,int* col,float* value,float**b,float**c){
     struct timeval val,newVal; //时间
@@ -219,40 +207,10 @@ void init(){
 }
 
 
-//实现pThread的spmv算法1:静态线程分配
-void* coo_multiply_vector_pthread1(void *parm){
-    struct timeval val,newVal;
-    gettimeofday(&val, NULL);
-    threadParm_t *p = (threadParm_t *) parm;
-    int id = p->threadId;
-    int seg=nozerorows/THREAD_NUM;
-    for(int i=index[seg*id];i<index[seg*(id+1)];i++){
-        yy[row[i]] += value[i] * vec[col[i]];
-    }
-    pthread_exit(nullptr);
-    gettimeofday(&newVal, NULL);
-    double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
-}
+
 
 int next_arr = 0;
 pthread_mutex_t  mutex_task;
-//实现pThread的spmv算法2：动态线程分配 ---------这里的难点在于粒度的划分，4个线程，可以每十行进行变量的划分
-void* coo_multiply_vector_pthread2(void *parm){
-    threadParm_t *p = (threadParm_t *) parm;
-    int id = p->threadId;
-    int task = 0;
-
-    while(1){
-        pthread_mutex_lock(&mutex_task);
-        task = next_arr++;
-        pthread_mutex_unlock(&mutex_task);
-        if (task >= nozerorows) break;
-        for(int i=index[task];i<index[task+1];i++){
-            yyy[row[i]] += value[i] * vec[col[i]];
-        }
-    }
-    pthread_exit(NULL);
-}
 
 //实现pThread的spmm算法
 ///这里线程有两种划分模式，一种是直接在外层进行划分，另一种是在内层进行划分
@@ -390,53 +348,6 @@ void* coo_multiply_matrix_pthread_sse1(void *parm){
     pthread_exit(NULL);
 }
 
-
-
-
-//pThread实现spMV代码封装：静态线程分配
-double spMV_pThread_static(int thread_num){
-    THREAD_NUM=thread_num;
-    struct timeval val,newVal;
-    gettimeofday(&val, NULL);
-    pthread_t thread[THREAD_NUM];
-    threadParm_t threadParm[THREAD_NUM];
-    for (int i = 0; i < THREAD_NUM; i++)
-    {
-      threadParm[i].threadId = i;
-      pthread_create(&thread[i], nullptr, coo_multiply_vector_pthread1, (void *)&threadParm[i]);
-    }
-
-    for (int i = 0; i < THREAD_NUM; i++)
-    {
-      pthread_join(thread[i], nullptr);
-    }
-    gettimeofday(&newVal, NULL);
-    double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
-	return diff / Converter;
-}
-
-//pThread实现spMV代码封装：动态线程分配函数
-double spMV_pThread_dynamic(int thread_num){
-    THREAD_NUM=thread_num;
-    struct timeval val,newVal;
-    gettimeofday(&val, NULL);
-    pthread_t thread[THREAD_NUM];
-    threadParm_t threadParm[THREAD_NUM];
-
-    for (int i = 0; i < THREAD_NUM; i++)
-    {
-      threadParm[i].threadId = i;
-      pthread_create(&thread[i], nullptr, coo_multiply_vector_pthread2, (void *)&threadParm[i]);
-    }
-
-    for (int i = 0; i < THREAD_NUM; i++)
-    {
-      pthread_join(thread[i], nullptr);
-    }
-    gettimeofday(&newVal, NULL);
-    double diff = (newVal.tv_sec * Converter + newVal.tv_usec) - (val.tv_sec * Converter + val.tv_usec);
-	return diff / Converter;
-}
 
 //pThread实现spMM静态线程分配第一种算法封装
 double spMM_pThread_static1(int thread_num){
