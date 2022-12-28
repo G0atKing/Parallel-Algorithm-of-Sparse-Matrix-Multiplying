@@ -571,11 +571,7 @@ double coo_multiply_matrix_openMP_dynamic_sse(){
 }
 
 
-///1.对比spMM几种算法的性能
-///1.改变矩阵规模测试：100——10000
-///2.改变线程数目：4——10
-///3.改变稀疏度：0.001——0.05
-///4.动态线程改变不同矩阵规模下的单个任务的单位:基本确定了矩阵进行计算的单位
+//对比spMM几种算法的性能
 void spMM_all_test(){
     init();
     double serial,spmm_static1,spmm_dynamic,spmm_dynamic_sse,spmm_dynamic_avx,spmm_sse,spmm_avx,spmm_pthread_sse,spmm_pthread_avx,
