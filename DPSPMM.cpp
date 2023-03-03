@@ -217,10 +217,10 @@ pthread_mutex_t  mutex_task;
 ///第一种实现的是在外层进行划分
 void* coo_multiply_matrix_pthread1(void *parm){
     threadParm_t *p = (threadParm_t *) parm;
-    int id = p->threadId;//线程号
-    int interval=nozerorows/THREAD_NUM;//间隔的设定
+    int id = p->threadId;
+    int interval=nozerorows/THREAD_NUM;
     int maxx=0;
-    if(id==3){
+    if(id==THREAD_NUM-1){
         maxx=nonzeros;
 
     }else{
@@ -230,7 +230,7 @@ void* coo_multiply_matrix_pthread1(void *parm){
     for(int i=index[interval*id];i<maxx;i++){//计算的index[]是从row的i行到i+interval行
         for(int k=0;k<n;k++)
             mat_res1[row[i]][k] += value[i] * mat_nonsparse[col[i]][k];
-    }//外层划分
+    }
     pthread_exit(NULL);
 }
 ///第二种方法是在内层进行划分
@@ -238,9 +238,9 @@ void* coo_multiply_matrix_pthread2(void *parm){
     threadParm_t2 *p = (threadParm_t2 *) parm;
     int id = p->threadId;
     int i=p->rowid;
-    int interval=n/THREAD_NUM;//间隔的设定
+    int interval=n/THREAD_NUM;
     int maxx=0;
-    if(id==3){
+    if(id==THREAD_NUM-1){
         maxx=n;
 
     }else{
@@ -258,10 +258,10 @@ int next_arr2 = 0;
 //实现pThread编程的spmm动态线程分配
 void* coo_multiply_matrix_pthread4(void *parm){
     threadParm_t *p = (threadParm_t *) parm;
-    int id = p->threadId;//线程id
+    int id = p->threadId;
     __m128 t1,t2,t3,sum;
     int choice = n % 4;
-    int task = 0;//任务数
+    int task = 0;
     int maxx;
     while(1){
         pthread_mutex_lock(&mutex_task);
@@ -272,7 +272,7 @@ void* coo_multiply_matrix_pthread4(void *parm){
         if(task>=nozerorows-single_circle)maxx=nonzeros;
         else maxx=index[task+single_circle];
         for(int i=index[task];i<maxx;i++){
-            for(int k=0;k<n-choice;k+=4)//一次求4组
+            for(int k=0;k<n-choice;k+=4)
             {
                 t1=_mm_load_ps(mat_nonsparse[col[i]]+k);
                 sum = _mm_setzero_ps();
@@ -310,7 +310,7 @@ void* coo_multiply_matrix_pthread3(void *parm){
             for(int k=0;k<n;k++)
                 mat_res3[row[i]][k] += value[i] * mat_nonsparse[col[i]][k];
         }
-    }//多线程动态分配
+    }
     pthread_exit(NULL);
 }
 
@@ -318,12 +318,12 @@ void* coo_multiply_matrix_pthread3(void *parm){
 void* coo_multiply_matrix_pthread_sse1(void *parm){
     threadParm_t *p = (threadParm_t *) parm;
     int id = p->threadId;
-    int interval=nozerorows/THREAD_NUM;//间隔的设定
+    int interval=nozerorows/THREAD_NUM;
     int maxx=0;
     __m128 t1,t2,t3,sum;
     int choice = n % 4;
-    if(id==3){
-        maxx=nonzeros;//最大非零个数
+    if(id==THREAD_NUM-1){
+        maxx=nonzeros;
 
     }else{
         maxx=index[interval*(id+1)];
@@ -571,7 +571,11 @@ double coo_multiply_matrix_openMP_dynamic_sse(){
 }
 
 
-//对比spMM几种算法的性能
+///1.对比spMM几种算法的性能
+///1.改变矩阵规模测试：100——10000
+///2.改变线程数目：4——10
+///3.改变稀疏度：0.001——0.05
+///4.动态线程改变不同矩阵规模下的单个任务的单位:基本确定了矩阵进行计算的单位
 void spMM_all_test(){
     init();
     double serial,spmm_static1,spmm_dynamic,spmm_dynamic_sse,spmm_dynamic_avx,spmm_sse,spmm_avx,spmm_pthread_sse,spmm_pthread_avx,
@@ -604,15 +608,16 @@ void spMM_all_test(){
     cout<<"矩阵规模:"<<n << "\t线程数:"<<THREAD_NUM<<endl
         <<"算法:                "<<"运行时间   "<<"加速比"<<endl
         <<"串行:                "<<serial<< "   " <<"100%"  <<endl
-        <<"SIMD:               "<<spmm_sse<<"   " <<serial/spmm_sse*100 <<"%" << endl
-        <<"pThread静态分配:     "<<spmm_static1<<"   " <<spmm_static1/spmm_sse*100 <<"%"                           <<endl
-        <<"pThread动态分配:     "<<spmm_dynamic<<"   " <<spmm_dynamic/spmm_sse*100 <<"%"                           <<endl
-        <<"pThread静态分配+SIMD:"<<spmm_pthread_sse<<"   " <<spmm_pthread_sse/spmm_sse*100 <<"%"                         <<endl
-        <<"pThread动态分配+SIMD:"<<spmm_dynamic_sse<<"   " <<spmm_dynamic_sse/spmm_sse*100 <<"%"                       <<endl
-        <<"openMP静态分配:      "<<spmm_openmp_static<<"   " <<spmm_openmp_static/spmm_sse*100 <<"%"                    <<endl
-        <<"openMP动态分配:      "<<spmm_openmp_dynamic <<"   " <<spmm_openmp_dynamic/spmm_sse*100 <<"%"                <<endl
-        <<"openMP静态分配+SIMD: "<<spmm_openmp_static_sse <<"   " <<spmm_openmp_static_sse/spmm_sse*100 <<"%"              <<endl
-        <<"openMP动态分配+SIMD: "<<spmm_openmp_dynamic_sse <<"   " <<spmm_openmp_dynamic_sse/spmm_sse*100 <<"%"                <<endl;
+        <<"SIMD:               "<<spmm_sse<<"   " <<spmm_sse/serial*100 <<"%" << endl
+        <<"pThread静态分配:     "<<spmm_static1<<"   " <<spmm_static1/serial*100 <<"%"                           <<endl
+        <<"pThread动态分配:     "<<spmm_dynamic<<"   " <<spmm_dynamic/serial*100 <<"%"                           <<endl
+        <<"pThread静态分配+SIMD:"<<spmm_pthread_sse<<"   " <<spmm_pthread_sse/serial*100 <<"%"                         <<endl
+        <<"pThread动态分配+SIMD:"<<spmm_dynamic_sse<<"   " <<spmm_dynamic_sse/serial*100 <<"%"                       <<endl
+        <<"openMP静态分配:      "<<spmm_openmp_static<<"   " <<spmm_openmp_static/serial*100 <<"%"                    <<endl
+        <<"openMP动态分配:      "<<spmm_openmp_dynamic <<"   " <<spmm_openmp_dynamic/serial*100 <<"%"                <<endl
+        <<"openMP静态分配+SIMD: "<<spmm_openmp_static_sse <<"   " <<spmm_openmp_static_sse/serial*100 <<"%"              <<endl
+        <<"openMP动态分配+SIMD: "<<spmm_openmp_dynamic_sse <<"   " <<spmm_openmp_dynamic_sse/serial*100 <<"%"                <<endl;
+    
         
 }
 
